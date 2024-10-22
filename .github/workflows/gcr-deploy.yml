@@ -22,13 +22,32 @@ jobs:
           chmod +x /usr/local/bin/docker-compose
           docker-compose version  # Verify the installation
 
-      - name: Build and Push Docker Compose Services
-        run: |
-          docker-compose -f docker-compose.yml build
-          docker-compose -f docker-compose.yml push
-
       - name: Authenticate to GCR
         run: gcloud auth configure-docker
+
+      - name: Setup GCloud Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: ${{ secrets.GCR_SA_KEY }}
+          cleanup_credentials: true
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0.2.1
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account_key: ${{ secrets.GCR_SA_KEY }}
+
+      - name: Build Docker Compose Services
+        run: |
+          docker-compose -f docker-compose.yml build
+
+      - name: Build & Push to GCR
+        run: |-
+          SERVICE_NAME="elasticsearch-rust-autocomplete"
+          gcloud builds submit --tag "gcr.io/${{ secrets.GCP_PROJECT_ID }}/${SERVICE_NAME}:${{ github.sha }}" .
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Deploy to Cloud Run
         run: |-
@@ -39,4 +58,7 @@ jobs:
             --memory 1Gi \
             --image "$IMAGE_NAME" \
             --platform "managed" \
-            --allow-unauthenticated
+            --allow-unauthenticated \
+            --region ${{ secrets.GCP_REGION }}
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
