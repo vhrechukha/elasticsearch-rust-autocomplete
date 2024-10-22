@@ -1,10 +1,12 @@
+use actix_web::HttpRequest;
 use actix_web::{post, web, App, HttpServer, Responder};
-use elasticsearch::{Elasticsearch, SearchParts, http::transport::Transport};
+use awc::Client;
+use dotenv::dotenv;
+use elasticsearch::{http::transport::Transport, Elasticsearch, SearchParts};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::env;
 use std::error::Error;
-use dotenv::dotenv;
 
 #[derive(Deserialize)]
 struct SearchRequest {
@@ -14,6 +16,22 @@ struct SearchRequest {
 #[derive(Serialize)]
 struct SearchResponse {
     results: Vec<String>,
+}
+
+async fn forward_to_elasticsearch(req: HttpRequest) -> impl Responder {
+    let client = Client::default();
+    let elastic_url = format!("http://elasticsearch:9200{}", req.uri());
+    let mut response = client.get(elastic_url).send().await.unwrap();
+    let body = response.body().await.unwrap();
+    String::from_utf8(body.to_vec()).unwrap()
+}
+
+async fn forward_to_kibana(req: HttpRequest) -> impl Responder {
+    let client = Client::default();
+    let kibana_url = format!("http://kibana:5601{}", req.uri());
+    let mut response = client.get(kibana_url).send().await.unwrap();
+    let body = response.body().await.unwrap();
+    String::from_utf8(body.to_vec()).unwrap()
 }
 
 async fn search_elasticsearch(word: String) -> Result<Vec<String>, Box<dyn Error>> {
@@ -62,13 +80,16 @@ async fn search(req_body: web::Json<SearchRequest>) -> impl Responder {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
-    let server_address = "0.0.0.0:8080";
-
     HttpServer::new(|| {
         App::new()
-            .service(search)
+            .route("/", web::get().to(|| async { "Rust App Home" }))
+            .route(
+                "/elasticsearch/{tail:.*}",
+                web::to(forward_to_elasticsearch),
+            )
+            .route("/kibana/{tail:.*}", web::to(forward_to_kibana))
     })
-    .bind(server_address)?
+    .bind("0.0.0.0:8080")?
     .run()
     .await
 }
