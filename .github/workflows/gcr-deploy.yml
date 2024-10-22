@@ -27,7 +27,7 @@ jobs:
 
       - name: Setup GCloud Auth
         id: auth
-        uses: 'google-github-actions/auth@v2
+        uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCR_SA_KEY }}
           cleanup_credentials: true
