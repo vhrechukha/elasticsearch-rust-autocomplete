@@ -26,3 +26,17 @@ jobs:
         run: |
           docker-compose -f docker-compose.yml build
           docker-compose -f docker-compose.yml push
+
+      - name: Authenticate to GCR
+        run: gcloud auth configure-docker
+
+      - name: Deploy to Cloud Run
+        run: |-
+          SERVICE_NAME="elasticsearch-rust-autocomplete"
+          IMAGE_NAME="gcr.io/${{ secrets.GCP_PROJECT_ID }}/${SERVICE_NAME}:${{ github.sha }}"
+          gcloud run deploy "$SERVICE_NAME" \
+            --quiet \
+            --memory 1Gi \
+            --image "$IMAGE_NAME" \
+            --platform "managed" \
+            --allow-unauthenticated
