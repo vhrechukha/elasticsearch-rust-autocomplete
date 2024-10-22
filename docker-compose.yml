@@ -1,41 +1,52 @@
-services:
-  elasticsearch:
-    build: 
-      context: setup-elasticsearch/
-      dockerfile: Dockerfile
-    container_name: elasticsearch
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-    volumes:
-      - esdata:/usr/share/elasticsearch/data
-    ports:
-      - "9200:9200"
+name: Build and Deploy Docker Image
 
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.0.0
-    container_name: kibana
-    ports:
-      - "5601:5601"
-    environment:
-      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
-    depends_on:
-      - elasticsearch
+on:
+  push:
+    branches:
+      - main
 
-  rust_app:
-    build:
-      context: app/
-      dockerfile: Dockerfile
-    environment:
-      - RUST_LOG=info
-      - ELASTICSEARCH_URL=http://elasticsearch:9200
-    ports:
-      - "8080:8080"
-    depends_on:
-      - elasticsearch
-    volumes:
-      - ./app/:/usr/src/app
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    env:
+      RUN_REGION: us-central1
+      PROJECT_ID: mosend
 
-volumes:
-  esdata:
-    driver: local
+    steps:
+    - name: Checkout Repo
+      uses: actions/checkout@v2
+
+    - name: Print Project ID for debugging
+      run: |
+        echo "Project ID: $PROJECT_ID"
+
+    - name: Set up Docker Image Name
+      run: |
+        echo "IMAGE_NAME=${{ github.repository }}:${{ github.sha }}" >> $GITHUB_ENV
+        echo "FULL_IMAGE_NAME=gcr.io/$PROJECT_ID/${{ env.IMAGE_NAME }}" >> $GITHUB_ENV
+
+    - name: Print full image name for debugging
+      run: |
+        echo "Full Image Name: ${{ env.FULL_IMAGE_NAME }}"
+
+    - name: Build Docker Image
+      run: docker build -t ${{ env.FULL_IMAGE_NAME }} .
+
+    - name: Authenticate with Google Cloud
+      uses: google-github-actions/auth@v0
+      with:
+        credentials_json: ${{ secrets.GCR_SA_KEY }}
+
+    - name: Configure Docker to use the gcloud command-line tool as a credential helper
+      run: gcloud auth configure-docker
+
+    - name: Push Image to Google Container Registry
+      run: docker push ${{ env.FULL_IMAGE_NAME }}
+
+    - name: Deploy to Google Cloud Run
+      run: |
+        gcloud run deploy my-service \
+          --image ${{ env.FULL_IMAGE_NAME }} \
+          --region ${{ env.RUN_REGION }} \
+          --platform managed \
+          --allow-unauthenticated
