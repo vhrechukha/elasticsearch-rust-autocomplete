@@ -1,4 +1,4 @@
-name: Build and Push Docker Images
+name: Build, Push, and Index Elasticsearch Data
 
 on:
   push:
@@ -45,15 +45,16 @@ jobs:
       - name: Push to GCR
         run: |-
           SERVICE_NAME="elasticsearch-rust-autocomplete"
-          gcloud builds submit --tag "gcr.io/${{ secrets.GCP_PROJECT_ID }}/${SERVICE_NAME}:${{ github.sha }}" ./app  # Adjust the path if your Dockerfile is in another directory
+          gcloud builds submit --tag "gcr.io/${{ secrets.GCP_PROJECT_ID }}/${SERVICE_NAME}:${{ github.sha }}" ./app
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Deploy to Cloud Run
         run: |-
           SERVICE_NAME="elasticsearch-rust-autocomplete"
+          PREFIXED_SERVICE_NAME="${SERVICE_NAME}-${{ github.sha }}"
           IMAGE_NAME="gcr.io/${{ secrets.GCP_PROJECT_ID }}/${SERVICE_NAME}:${{ github.sha }}"
-          gcloud run deploy "$SERVICE_NAME" \
+          gcloud run deploy "$PREFIXED_SERVICE_NAME" \
             --quiet \
             --memory 1Gi \
             --image "$IMAGE_NAME" \
@@ -62,3 +63,61 @@ jobs:
             --region us-central1
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Wait for Elasticsearch to be Ready
+        run: |
+          until curl -s http://localhost:9200; do
+            echo "Waiting for Elasticsearch to be ready..."
+            sleep 10
+          done
+
+      - name: Create Elasticsearch Index
+        run: |
+          curl -X PUT "http://localhost:9200/autocomplete_index" -H 'Content-Type: application/json' -d'
+          {
+              "settings": {
+                  "analysis": {
+                      "filter": {
+                          "autocomplete_filter": {
+                              "type": "edge_ngram",
+                              "min_gram": 1,
+                              "max_gram": 20
+                          }
+                      },
+                      "analyzer": {
+                          "autocomplete_analyzer": {
+                              "type": "custom",
+                              "tokenizer": "standard",
+                              "filter": [
+                                  "lowercase",
+                                  "autocomplete_filter"
+                              ]
+                          },
+                          "autocomplete_search_analyzer": {
+                              "type": "custom",
+                              "tokenizer": "standard",
+                              "filter": [
+                                  "lowercase"
+                              ]
+                          }
+                      }
+                  }
+              },
+              "mappings": {
+                  "properties": {
+                      "word": {
+                          "type": "text",
+                          "analyzer": "autocomplete_analyzer",
+                          "search_analyzer": "autocomplete_search_analyzer"
+                      }
+                  }
+              }
+          }'
+      
+      - name: Make Bulk Indexing Script Executable
+        run: |
+          chmod +x setup-elasticsearch/bulk_index.sh
+
+      - name: Run Bulk Indexing Script
+        run: |
+          ./setup-elasticsearch/bulk_index.sh
