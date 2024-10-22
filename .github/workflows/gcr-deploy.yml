@@ -52,8 +52,12 @@ jobs:
       - name: Deploy to Cloud Run
         run: |-
           SERVICE_NAME="elasticsearch-rust-autocomplete"
-          PREFIXED_SERVICE_NAME="${SERVICE_NAME}-${{ github.sha }}"
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)  # Truncate SHA to first 8 characters
+          PREFIXED_SERVICE_NAME="${SERVICE_NAME}-${SHORT_SHA}"
           IMAGE_NAME="gcr.io/${{ secrets.GCP_PROJECT_ID }}/${SERVICE_NAME}:${{ github.sha }}"
+          
+          echo "Deploying service $PREFIXED_SERVICE_NAME"
+          
           gcloud run deploy "$PREFIXED_SERVICE_NAME" \
             --quiet \
             --memory 1Gi \
@@ -61,8 +65,6 @@ jobs:
             --platform "managed" \
             --allow-unauthenticated \
             --region us-central1
-        env:
-          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
 
       - name: Wait for Elasticsearch to be Ready
         run: |
