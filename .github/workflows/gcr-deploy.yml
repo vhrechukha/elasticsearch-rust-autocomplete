@@ -11,7 +11,7 @@ jobs:
     env:
       RUN_REGION: us-central1
       # Directly refer to the GitHub secret here to ensure it's pulled correctly
-      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }} 
+      PROJECT_ID: mosend
 
     steps:
     - name: Checkout Repo
