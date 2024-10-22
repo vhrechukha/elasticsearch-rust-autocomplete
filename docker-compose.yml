@@ -27,15 +27,8 @@ jobs:
           push: true
           tags: ghcr.io/vhrechukha/elasticsearch:${{ github.sha }}
 
-      - name: Build Rust App Docker Image
-        uses: docker/build-push-action@v2
-        with:
-          context: app/
-          file: app/Dockerfile
-          push: true
-          tags: ghcr.io/vhrechukha/rust-app:${{ github.sha }}
-
-      - name: Run Docker Compose
+      - name: Build and Push Docker Compose Services
         run: |
-          docker-compose -f docker-compose.yml up -d --build
+          docker-compose -f docker-compose.yml build
+          docker-compose -f docker-compose.yml push
 
