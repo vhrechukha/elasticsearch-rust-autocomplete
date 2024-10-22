@@ -16,8 +16,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      - name: Install Docker Compose
+        run: |
+          curl -L "https://github.com/docker/compose/releases/download/v2.27.1/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          chmod +x /usr/local/bin/docker-compose
+          docker-compose version  # Verify the installation
+
       - name: Build and Push Docker Compose Services
         run: |
           docker-compose -f docker-compose.yml build
           docker-compose -f docker-compose.yml push
-
