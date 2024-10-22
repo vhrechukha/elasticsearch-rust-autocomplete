@@ -42,10 +42,10 @@ jobs:
         run: |
           docker-compose -f docker-compose.yml build
 
-      - name: Build & Push to GCR
+      - name: Push to GCR
         run: |-
           SERVICE_NAME="elasticsearch-rust-autocomplete"
-          gcloud builds submit --tag "gcr.io/${{ secrets.GCP_PROJECT_ID }}/${SERVICE_NAME}:${{ github.sha }}" .
+          gcloud builds submit --tag "gcr.io/${{ secrets.GCP_PROJECT_ID }}/${SERVICE_NAME}:${{ github.sha }}" ./app  # Adjust the path if your Dockerfile is in another directory
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
 
