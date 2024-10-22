@@ -1,34 +1,19 @@
-name: Build and Deploy Docker Image
-
-on:
-  push:
-    branches:
-      - main
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     env:
       RUN_REGION: us-central1
-      # Directly refer to the GitHub secret here to ensure it's pulled correctly
       PROJECT_ID: mosend
-
     steps:
     - name: Checkout Repo
       uses: actions/checkout@v2
 
-    - name: Print Project ID for debugging
+    - name: Set up Docker Environment
       run: |
-        echo "Project ID: $PROJECT_ID"
-
-    - name: Set up Docker Image Name
-      run: |
-        echo "IMAGE_NAME=${{ github.repository }}:${{ github.sha }}" >> $GITHUB_ENV
-        echo "FULL_IMAGE_NAME=gcr.io/$PROJECT_ID/${{ env.IMAGE_NAME }}" >> $GITHUB_ENV
-
-    - name: Print full image name for debugging
-      run: |
-        echo "Full Image Name: ${{ env.FULL_IMAGE_NAME }}"
+        echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+        echo "IMAGE_NAME=vhrechukha/elasticsearch-rust-autocomplete:$IMAGE_TAG" >> $GITHUB_ENV
+        echo "FULL_IMAGE_NAME=gcr.io/$PROJECT_ID/$IMAGE_NAME" >> $GITHUB_ENV
+        echo "Full Image Name: $FULL_IMAGE_NAME"
 
     - name: Build Docker Image
       run: docker build -t ${{ env.FULL_IMAGE_NAME }} .
@@ -37,9 +22,6 @@ jobs:
       uses: google-github-actions/auth@v0
       with:
         credentials_json: ${{ secrets.GCR_SA_KEY }}
-
-    - name: Configure Docker to use the gcloud command-line tool as a credential helper
-      run: gcloud auth configure-docker
 
     - name: Push Image to Google Container Registry
       run: docker push ${{ env.FULL_IMAGE_NAME }}
